@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIR - Sistema de Inteligencia de Redes</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Vis Network CDN -->
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">S.I.R.</div>
+        <div class="brand-subtitle">Inteligencia de Redes</div>
+      </div>
+    </div>
+
+    <!-- Global Counters -->
+    <div class="global-stats">
+      <div class="stat-card">
+        <div class="stat-val" id="stat-nodes">0</div>
+        <div class="stat-label">Nodos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-relations">0</div>
+        <div class="stat-label">Relaciones</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-avg-influence">0</div>
+        <div class="stat-label">Avg Influencia</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-communities">0</div>
+        <div class="stat-label">Comunidades</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Dashboard Container -->
+  <div class="dashboard-container">
+
+    <!-- Interactive Canvas Area (Left Side) -->
+    <div class="canvas-panel">
+      <!-- Search Overlay -->
+      <div class="canvas-search">
+        <input type="text" id="search-input" placeholder="Buscar entidad por nombre...">
+        <button class="btn" id="search-btn">🔍 Buscar</button>
+      </div>
+
+      <!-- Canvas Controls Overlay -->
+      <div class="canvas-overlay-controls">
+        <button class="overlay-btn" id="ctrl-zoom-in" title="Acercar">➕</button>
+        <button class="overlay-btn" id="ctrl-zoom-out" title="Alejar">➖</button>
+        <button class="overlay-btn" id="ctrl-fit" title="Centrar Red">🎯</button>
+        <button class="overlay-btn" id="ctrl-physics" title="Pausar Físicas">🔄</button>
+      </div>
+
+      <!-- Vis.js Graph Canvas -->
+      <div id="network-canvas"></div>
+
+      <!-- Legend Panel -->
+      <div class="canvas-legend">
+        <div class="legend-title">Rangos de Influencia</div>
+        <div class="legend-row">
+          <div class="legend-color" style="background-color: #EF4444;"></div>
+          <span>Supernodo (750 - 1000)</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-color" style="background-color: #F97316;"></div>
+          <span>Hub Estratégico (500 - 749)</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-color" style="background-color: #F59E0B;"></div>
+          <span>Catalizador (300 - 499)</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-color" style="background-color: #10B981;"></div>
+          <span>Influenciador (150 - 299)</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-color" style="background-color: #3B82F6;"></div>
+          <span>Conector (50 - 149)</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-color" style="background-color: #6B7280;"></div>
+          <span>Nodo Nuevo (0 - 49)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar Panel (Right Side) -->
+    <div class="sidebar-panel">
+      <!-- Tabs Headers -->
+      <div class="tabs-header">
+        <button class="tab-btn active" data-tab="tab-details">Detalles</button>
+        <button class="tab-btn" data-tab="tab-intelligence">Inteligencia</button>
+        <button class="tab-btn" data-tab="tab-data">Datos</button>
+      </div>
+
+      <!-- Tabs Contents Area -->
+      <div class="tabs-content">
+
+        <!-- Tab 1: Element Details -->
+        <div class="tab-pane active" id="tab-details">
+          <div class="panel-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div class="panel-section-title" style="margin-bottom: 0; border: none;">Entidad Seleccionada</div>
+              <button class="btn btn-secondary" id="btn-add-node" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">➕ Crear Nodo</button>
+            </div>
+
+            <!-- Dynamic Node Info Box -->
+            <div id="selected-node-container">
+              <div class="empty-state">
+                Haz clic en cualquier nodo de la red para visualizar sus métricas, relaciones y atributos detallados.
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Relationship Creator -->
+          <div class="panel-section" id="quick-relation-section" style="display: none;">
+            <div class="panel-section-title">Añadir Nueva Relación</div>
+            <form id="quick-relation-form">
+              <div class="form-group">
+                <label class="form-label">Origen (Entidad actual)</label>
+                <input type="text" class="form-control" id="rel-orig-name" readonly>
+                <input type="hidden" id="rel-orig-id">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Destino (Conectar con)</label>
+                <select class="form-control" id="rel-dest-select" required></select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Tipo de Relación</label>
+                  <select class="form-control" id="rel-type" required>
+                    <option value="TRABAJA_EN">Trabaja En</option>
+                    <option value="PERTENECE_A">Pertenece A</option>
+                    <option value="ES_SOCIO_DE">Es Socio De</option>
+                    <option value="CONOCE_A">Conoce A</option>
+                    <option value="ORGANIZA">Organiza</option>
+                    <option value="ASISTE_A">Asiste A</option>
+                    <option value="ES_PROPIETARIO_DE">Es Propietario De</option>
+                    <option value="FINANCIA">Financia</option>
+                    <option value="PARTICIPA_EN">Participa En</option>
+                    <option value="COLABORA_CON">Colabora Con</option>
+                    <option value="REPRESENTA">Representa</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Peso Inicial</label>
+                  <select class="form-control" id="rel-weight" required>
+                    <option value="20">Socio / Fundador (20)</option>
+                    <option value="18">Presidente (18)</option>
+                    <option value="16">Director (16)</option>
+                    <option value="15">Consejo Directivo (15)</option>
+                    <option value="14">Organizador (14)</option>
+                    <option value="12">Miembro Asociación (12)</option>
+                    <option value="10">Trabaja en Empresa (10)</option>
+                    <option value="8">Participó en Evento (8)</option>
+                    <option value="6">Amigo (6)</option>
+                    <option value="4">Conocido (4)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Confianza % (0-100)</label>
+                  <input type="number" class="form-control" id="rel-confidence" value="90" min="0" max="100" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Última Interacción</label>
+                  <input type="date" class="form-control" id="rel-date" value="2026-07-17" required>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Observaciones</label>
+                <textarea class="form-control" id="rel-notes" placeholder="Detalles de la interacción..."></textarea>
+              </div>
+              <button type="submit" class="btn" style="width: 100%;">Crear Relación</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Tab 2: Intelligence & Communities -->
+        <div class="tab-pane" id="tab-intelligence">
+          
+          <!-- Route Pathfinder -->
+          <div class="panel-section">
+            <div class="panel-section-title">Buscar Intermediario (Pathfinder)</div>
+            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+              Encuentra la cadena de contactos más fuerte y con mayor confianza para conectar dos personas o entidades.
+            </p>
+            <div class="form-group">
+              <label class="form-label">Origen (Entidad A)</label>
+              <select class="form-control" id="path-start"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Destino (Entidad B)</label>
+              <select class="form-control" id="path-end"></select>
+            </div>
+            <button class="btn" id="btn-find-path" style="width: 100%;">⚡ Calcular Camino Óptimo</button>
+            
+            <div id="pathfinder-results-box" class="pathfinder-results" style="display: none;">
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent-teal); margin-bottom: 0.5rem; text-transform: uppercase;">Ruta Sugerida:</div>
+              <div class="path-step-container" id="path-steps"></div>
+            </div>
+          </div>
+
+          <!-- Communities List -->
+          <div class="panel-section">
+            <div class="panel-section-title">Comunidades Detectadas (LPA)</div>
+            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+              Agrupaciones identificadas dinámicamente según la fuerza de sus interacciones y vecindarios.
+            </p>
+            <div class="intelligence-list" id="communities-list">
+              <!-- Rendered programmatically -->
+            </div>
+          </div>
+
+          <!-- Intelligent Recommendations -->
+          <div class="panel-section">
+            <div class="panel-section-title">Recomendaciones del Motor SIR</div>
+            <div id="recommendations-container">
+              <!-- Rendered programmatically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Data Management -->
+        <div class="tab-pane" id="tab-data">
+          <!-- Reset / Demo operations -->
+          <div class="panel-section">
+            <div class="panel-section-title">Acciones de Red</div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary" id="btn-export" style="flex: 1;">📥 Exportar JSON</button>
+                <button class="btn btn-secondary" id="btn-import-trigger" style="flex: 1;">📤 Importar JSON</button>
+                <input type="file" id="btn-import" accept=".json" style="display: none;">
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary btn-danger" id="btn-reset" style="flex: 1;">🔄 Cargar Demo</button>
+                <button class="btn btn-danger" id="btn-clear-all" style="flex: 1;">🗑️ Borrar Grafo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- All elements index list -->
+          <div class="panel-section">
+            <div class="panel-section-title" id="data-elements-title">Entidades en Sistema (0)</div>
+            <div class="all-elements-list" id="all-entities-list">
+              <!-- Rendered programmatically -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Dialog: Add / Edit Node -->
+  <div class="modal-overlay" id="node-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="node-modal-title">Agregar Nuevo Nodo</h3>
+        <button class="close-btn" id="btn-close-node-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="node-form">
+          <input type="hidden" id="edit-node-id">
+          <div class="form-group">
+            <label class="form-label">Nombre</label>
+            <input type="text" class="form-control" id="node-name" required placeholder="Ej: Lic. Juan Pérez / Inmobiliaria Delta">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Tipo de Entidad</label>
+              <select class="form-control" id="node-type" required>
+                <option value="Persona">Persona</option>
+                <option value="Empresa">Empresa</option>
+                <option value="Asociación">Asociación</option>
+                <option value="Evento">Evento</option>
+                <option value="Proyecto">Proyecto</option>
+                <option value="Propiedad">Propiedad</option>
+                <option value="Universidad">Universidad</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Estado</label>
+              <select class="form-control" id="node-status" required>
+                <option value="Activo">Activo</option>
+                <option value="Inactivo">Inactivo</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Descripción</label>
+            <textarea class="form-control" id="node-desc" placeholder="Breve biografía o detalles de la entidad..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Atributos Adicionales (JSON Opcional)</label>
+            <textarea class="form-control" id="node-attributes" placeholder='{ "cargo": "CEO", "oficina": "Piso 5" }'></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fecha de Creación</label>
+            <input type="date" class="form-control" id="node-creation-date" value="2026-07-17">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cancel-node-modal">Cancelar</button>
+        <button class="btn" id="btn-save-node">Guardar Entidad</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Banner -->
+  <div class="notification-banner" id="toast-banner">
+    <span id="toast-text">Acción completada con éxito</span>
+  </div>
+
+  <!-- Code files load -->
+  <script src="database.js"></script>
+  <script src="algorithms.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
