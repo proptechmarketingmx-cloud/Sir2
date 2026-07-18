@@ -400,6 +400,11 @@ header {
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
 }
 
+.form-control option {
+  color: #111827;
+  background-color: #1a1f2e;
+}
+
 textarea.form-control {
   resize: vertical;
   min-height: 60px;
