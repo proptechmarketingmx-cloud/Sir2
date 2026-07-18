@@ -30,6 +30,13 @@ document.addEventListener("DOMContentLoaded", () => {
     return new Date(date.getTime() - offsetMs).toISOString().split("T")[0];
   };
 
+  const createEntityId = (prefix) => {
+    if (window.crypto?.randomUUID) {
+      return `${prefix}-${crypto.randomUUID()}`;
+    }
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  };
+
   const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => resolve()));
 
   const sidebarPanel = document.getElementById("sidebar-panel");
@@ -544,27 +551,30 @@ document.addEventListener("DOMContentLoaded", () => {
         bgColor = "rgba(43, 56, 82, 0.15)";
         borderColor = "rgba(75, 85, 99, 0.15)";
         fontColor = "rgba(156, 163, 175, 0.25)";
-      }
-
-      // Create rich HTML Tooltip content
-      const tooltip = `
-        <div style="background:#151b2c; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px; font-family:Inter,sans-serif; color:#f3f4f6;">
-          <strong style="font-size:14px; display:block; margin-bottom:4px; color:#ffffff;">${escapeHTML(n.nombre)}</strong>
-          <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${borderColor}22; color:${borderColor}; font-weight:700; border:1px solid ${borderColor}55; margin-right:4px;">${escapeHTML(n.tipo)}</span>
-          <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${stats.levelInfo.color}22; color:${stats.levelInfo.color}; font-weight:700; border:1px solid ${stats.levelInfo.color}55;">${escapeHTML(stats.levelInfo.name)}</span>
-          <div style="margin-top:6px; font-size:11px;">
-            <strong>Métricas:</strong>
-            <div style="margin-top:2px;">Índice de Influencia: <b style="color:${stats.levelInfo.color}">${stats.index}</b></div>
-            <div>Comunidad: <b>${escapeHTML(communityMap[n.id] || "Sin Grupo")}</b></div>
-            <div style="color:#9ca3af; margin-top:4px; font-style:italic;">${escapeHTML(n.descripcion || "Sin descripción.")}</div>
-          </div>
+      }      // Create rich HTML Tooltip content as a real DOM element so vis-network renders it correctly
+      const tooltipEl = document.createElement("div");
+      tooltipEl.style.background = "#151b2c";
+      tooltipEl.style.border = "1px solid rgba(255,255,255,0.15)";
+      tooltipEl.style.borderRadius = "6px";
+      tooltipEl.style.padding = "8px";
+      tooltipEl.style.fontFamily = "Inter,sans-serif";
+      tooltipEl.style.color = "#f3f4f6";
+      tooltipEl.innerHTML = `
+        <strong style="font-size:14px; display:block; margin-bottom:4px; color:#ffffff;">${escapeHTML(n.nombre)}</strong>
+        <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${borderColor}22; color:${borderColor}; font-weight:700; border:1px solid ${borderColor}55; margin-right:4px;">${escapeHTML(n.tipo)}</span>
+        <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${stats.levelInfo.color}22; color:${stats.levelInfo.color}; font-weight:700; border:1px solid ${stats.levelInfo.color}55;">${escapeHTML(stats.levelInfo.name)}</span>
+        <div style="margin-top:6px; font-size:11px;">
+          <strong>M�tricas:</strong>
+          <div style="margin-top:2px;">�ndice de Influencia: <b style="color:${stats.levelInfo.color}">${stats.index}</b></div>
+          <div>Comunidad: <b>${escapeHTML(communityMap[n.id] || "Sin Grupo")}</b></div>
+          <div style="color:#9ca3af; margin-top:4px; font-style:italic;">${escapeHTML(n.descripcion || "Sin descripci�n.")}</div>
         </div>
       `;
 
       nodesArray.push({
         id: n.id,
         label: n.nombre,
-        title: tooltip,
+        title: tooltipEl,
         size: size,
         color: {
           background: bgColor,
@@ -1125,7 +1135,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } else {
         // Insert
-        const newId = `node-${Date.now()}`;
+        const newId = createEntityId("node");
         nodes.push({
           id: newId,
           nombre,
@@ -1198,7 +1208,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const newRel = {
-      id: `rel-${Date.now()}`,
+      id: createEntityId("rel"),
       origen: origId,
       destino: destId,
       tipo: type,
@@ -1344,82 +1354,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeNodeModal() {
     closeDialog(nodeModal);
   }
-
-  // --- Data Controls (Import/Export/Reset) ---
-  
-  // Export Graph JSON
-  btnExport.onclick = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ nodes, relations }, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `SIR_grafo_${new Date().toISOString().slice(0,10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    showToast("Grafo exportado con éxito");
-  };
-
-  // Import JSON trigger file selector
-  btnImportTrigger.onclick = () => {
-    btnImport.click();
-  };
-
-  btnImport.onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const parsed = JSON.parse(evt.target.result);
-        if (!parsed.nodes || !parsed.relations) {
-          throw new Error("Formato inválido: debe contener arreglos de 'nodes' y 'relations'.");
-        }
-        nodes = parsed.nodes;
-        relations = parsed.relations;
-        
-        window.SIRDatabase.save(nodes, relations);
-        computeSystemState();
-        setupGraph();
-        updateUI();
-        clearNodeSelection();
-        showToast("Grafo importado exitosamente");
-      } catch (err) {
-        showToast(`Error al importar: ${err.message}`, true);
-      }
-    };
-    reader.readAsText(file);
-    // Reset file element value
-    btnImport.value = "";
-  };
-
-  // Restores mock demo dataset
-  btnReset.onclick = () => {
-    if (confirm("¿Reestablecer la red al ecosistema inmobiliario demo predeterminado?")) {
-      const data = window.SIRDatabase.reset();
-      nodes = data.nodes;
-      relations = data.relations;
-      computeSystemState();
-      setupGraph();
-      updateUI();
-      clearNodeSelection();
-      showToast("Ecosistema demo restaurado");
-    }
-  };
-
-  // Clear all data
-  btnClearAll.onclick = () => {
-    if (confirm("¿Estás seguro de borrar COMPLETAMENTE la red de nodos y relaciones?")) {
-      nodes = [];
-      relations = [];
-      window.SIRDatabase.save(nodes, relations);
-      computeSystemState();
-      setupGraph();
-      updateUI();
-      clearNodeSelection();
-      showToast("Grafo completamente vaciado", true);
-    }
-  };
 
   // --- Graph Controls overlay logic ---
   ctrlZoomIn.onclick = () => {
@@ -1763,3 +1697,5 @@ document.addEventListener("DOMContentLoaded", () => {
   // Run initial loading
   init();
 });
+
+
