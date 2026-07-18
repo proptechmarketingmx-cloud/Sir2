@@ -424,7 +424,22 @@ textarea.form-control {
 .badge-evento { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
 .badge-proyecto { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
 .badge-propiedad { background: rgba(236, 72, 153, 0.15); color: #ec4899; border: 1px solid rgba(236, 72, 153, 0.3); }
+.badge-universidad { background: rgba(6, 182, 212, 0.15); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.3); }
 .badge-default { background: rgba(107, 114, 128, 0.15); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3); }
+
+/* Influence level pills */
+.level-pill {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border-radius: 999px;
+}
+
+.level-new { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
+.level-connector { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.level-influencer { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.level-catalyst { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.level-hub { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+.level-super { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 
 /* Node Detail Layout */
 .detail-card {

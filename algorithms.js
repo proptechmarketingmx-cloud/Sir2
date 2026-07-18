@@ -8,7 +8,7 @@
 function calculateDecayFactor(lastInteractionIso) {
   if (!lastInteractionIso) return 0.10;
   const lastDate = new Date(lastInteractionIso);
-  const now = new Date("2026-07-17T20:00:00Z"); // Anchor to mock current time for consistency
+  const now = new Date();
   const diffTime = Math.max(0, now - lastDate);
   const diffDays = diffTime / (1000 * 60 * 60 * 24);
   const diffMonths = diffDays / 30.44;
@@ -188,7 +188,7 @@ function calculateInfluenceIndexes(nodes, relations) {
   // Activity: 10% -> 11.76%
   // Centrality: 5% -> 5.88%
   const prelimScores = {};
-  const now = new Date("2026-07-17T20:00:00Z");
+  const now = new Date();
 
   nodes.forEach(n => {
     const raw = stats[n.id];

@@ -140,7 +140,7 @@ const DEFAULT_NODES = [
 
 // Helper to construct recent dates relative to now (assuming current date is around July 2026)
 const getDateXMonthsAgo = (months) => {
-  const date = new Date("2026-07-17T20:00:00Z");
+  const date = new Date();
   date.setMonth(date.getMonth() - months);
   return date.toISOString();
 };

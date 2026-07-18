@@ -1,6 +1,21 @@
 // app.js - SIR Orchestrator and UI Interactions
 
 document.addEventListener("DOMContentLoaded", () => {
+  const getTodayDateValue = () => {
+    const now = new Date();
+    const offsetMs = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offsetMs).toISOString().split("T")[0];
+  };
+
+  const getTypeBadgeClass = (type) => {
+    const normalized = String(type || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-");
+    return `badge-${normalized || "default"}`;
+  };
+
   // --- App State ---
   let nodes = [];
   let relations = [];
@@ -86,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     relations = data.relations;
 
     // Set dates default value to current date
-    const today = new Date("2026-07-17").toISOString().split('T')[0];
+    const today = getTodayDateValue();
     nodeCreationDateInput.value = today;
     document.getElementById("rel-date").value = today;
 
@@ -232,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (nodeRelations.length > 0) {
         const dates = nodeRelations.map(r => new Date(r.ultimaInteraccion));
         const newest = new Date(Math.max(...dates));
-        recencyMonths = (new Date("2026-07-17T20:00:00Z") - newest) / (1000 * 60 * 60 * 24 * 30.44);
+        recencyMonths = (new Date() - newest) / (1000 * 60 * 60 * 24 * 30.44);
       }
 
       // Halos are active if node had interactions within the last 3 months
@@ -539,7 +554,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const div = document.createElement("div");
       div.className = "all-elements-item";
       
-      const badgeClass = `badge badge-${n.tipo.toLowerCase()}`;
+      const badgeClass = `badge ${getTypeBadgeClass(n.tipo)}`;
       
       div.innerHTML = `
         <span class="all-elements-item-name">${n.nombre}</span>
@@ -650,7 +665,7 @@ document.addEventListener("DOMContentLoaded", () => {
       attribsHtml = '<div style="font-size:0.75rem; color:var(--text-muted); font-style:italic;">Sin atributos adicionales.</div>';
     }
 
-    const badgeClass = `badge badge-${n.tipo.toLowerCase()}`;
+    const badgeClass = `badge ${getTypeBadgeClass(n.tipo)}`;
 
     // Render HTML in Sidebar Tab 1
     selectedNodeContainer.innerHTML = `
@@ -659,7 +674,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div>
             <h3 class="detail-title">${n.nombre}</h3>
             <span class="${badgeClass}">${n.tipo}</span>
-            <span class="badge" style="background:${stats.levelInfo.color}22; color:${stats.levelInfo.color}; border:1px solid ${stats.levelInfo.color}44;">Nivel ${stats.levelInfo.level}</span>
+            <span class="badge level-pill ${stats.levelInfo.class}" style="border:1px solid ${stats.levelInfo.color}44;">Nivel ${stats.levelInfo.level}</span>
           </div>
           <div style="text-align: right;">
             <span class="badge badge-default" style="display:block; margin-bottom:4px;">${n.estado}</span>
@@ -1003,7 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
     nodeForm.reset();
     nodeAttributesInput.value = "";
     
-    const today = new Date("2026-07-17").toISOString().split('T')[0];
+    const today = getTodayDateValue();
     nodeCreationDateInput.value = today;
 
     if (nodeIdToEdit) {
