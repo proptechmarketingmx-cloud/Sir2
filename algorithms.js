@@ -180,13 +180,8 @@ function calculateInfluenceIndexes(nodes, relations) {
   const maxBetweenness = Math.max(0.0001, ...Object.values(betweennessValues));
 
   // --- Pass 1: Preliminary Influence (Excluding Neighbor Influence) ---
-  // Re-adjust weights to 100% excluding neighbors:
-  // Degree: 25% -> 29.41%
-  // Diversity: 20% -> 23.53%
-  // Quality: 15% -> 17.65%
-  // Age: 10% -> 11.76%
-  // Activity: 10% -> 11.76%
-  // Centrality: 5% -> 5.88%
+  // Compute the 85% base score first. The remaining 15% comes from the
+  // average preliminary influence of neighboring nodes, normalized later by 0.85.
   const prelimScores = {};
   const now = new Date();
 

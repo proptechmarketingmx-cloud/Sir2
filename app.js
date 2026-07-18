@@ -16,6 +16,20 @@ document.addEventListener("DOMContentLoaded", () => {
     return `badge-${normalized || "default"}`;
   };
 
+  const escapeHTML = (value) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  const toDateInputValue = (value) => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const offsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offsetMs).toISOString().split("T")[0];
+  };
+
   // --- App State ---
   let nodes = [];
   let relations = [];
@@ -280,14 +294,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // Create rich HTML Tooltip content
       const tooltip = `
         <div style="background:#151b2c; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px; font-family:Inter,sans-serif; color:#f3f4f6;">
-          <strong style="font-size:14px; display:block; margin-bottom:4px; color:#ffffff;">${n.nombre}</strong>
-          <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${borderColor}22; color:${borderColor}; font-weight:700; border:1px solid ${borderColor}55; margin-right:4px;">${n.tipo}</span>
-          <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${stats.levelInfo.color}22; color:${stats.levelInfo.color}; font-weight:700; border:1px solid ${stats.levelInfo.color}55;">${stats.levelInfo.name}</span>
+          <strong style="font-size:14px; display:block; margin-bottom:4px; color:#ffffff;">${escapeHTML(n.nombre)}</strong>
+          <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${borderColor}22; color:${borderColor}; font-weight:700; border:1px solid ${borderColor}55; margin-right:4px;">${escapeHTML(n.tipo)}</span>
+          <span style="font-size:10px; padding:2px 6px; border-radius:3px; background:${stats.levelInfo.color}22; color:${stats.levelInfo.color}; font-weight:700; border:1px solid ${stats.levelInfo.color}55;">${escapeHTML(stats.levelInfo.name)}</span>
           <div style="margin-top:6px; font-size:11px;">
             <strong>Métricas:</strong>
             <div style="margin-top:2px;">Índice de Influencia: <b style="color:${stats.levelInfo.color}">${stats.index}</b></div>
-            <div>Comunidad: <b>${communityMap[n.id] || "Sin Grupo"}</b></div>
-            <div style="color:#9ca3af; margin-top:4px; font-style:italic;">${n.descripcion || "Sin descripción."}</div>
+            <div>Comunidad: <b>${escapeHTML(communityMap[n.id] || "Sin Grupo")}</b></div>
+            <div style="color:#9ca3af; margin-top:4px; font-style:italic;">${escapeHTML(n.descripcion || "Sin descripción.")}</div>
           </div>
         </div>
       `;
@@ -377,18 +391,24 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function populateDropdowns() {
-    // Pathfinder selects
-    const activePeople = nodes.filter(n => n.estado === "Activo").sort((a,b) => a.nombre.localeCompare(b.nombre));
+    // Show inactive nodes too, but mark them unavailable instead of hiding them.
+    const sortedNodes = [...nodes].sort((a,b) => a.nombre.localeCompare(b.nombre));
     
     // Clear and fill selects
     pathStartSelect.innerHTML = "";
     pathEndSelect.innerHTML = "";
     relDestSelect.innerHTML = '<option value="" disabled selected>-- Selecciona Entidad --</option>';
 
-    activePeople.forEach(p => {
-      const option1 = new Option(p.nombre, p.id);
-      const option2 = new Option(p.nombre, p.id);
-      const option3 = new Option(p.nombre, p.id);
+    sortedNodes.forEach(p => {
+      const label = p.estado === "Activo" ? p.nombre : `${p.nombre} (Inactivo)`;
+      const option1 = new Option(label, p.id);
+      const option2 = new Option(label, p.id);
+      const option3 = new Option(label, p.id);
+      const inactive = p.estado !== "Activo";
+
+      option1.disabled = inactive;
+      option2.disabled = inactive;
+      option3.disabled = inactive;
       
       pathStartSelect.add(option1);
       pathEndSelect.add(option2);
@@ -411,11 +431,18 @@ document.addEventListener("DOMContentLoaded", () => {
       commGroups[commName].push(n);
     });
 
-    const groupsArray = Object.keys(commGroups).sort();
-    if (groupsArray.length === 0) {
-      communitiesListEl.innerHTML = '<div class="empty-state">No hay suficientes relaciones para clasificar comunidades.</div>';
+    const activeRelations = relations.filter(r => r.estado === "Activo");
+    if (nodes.length === 0) {
+      communitiesListEl.innerHTML = '<div class="empty-state">No hay nodos en el sistema.</div>';
       return;
     }
+
+    if (activeRelations.length === 0) {
+      communitiesListEl.innerHTML = '<div class="empty-state">No hay relaciones activas suficientes para clasificar comunidades.</div>';
+      return;
+    }
+
+    const groupsArray = Object.keys(commGroups).sort();
 
     groupsArray.forEach(groupName => {
       const members = commGroups[groupName];
@@ -447,12 +474,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       item.innerHTML = `
         <div class="intel-item-header">
-          <span>${groupName}</span>
+          <span>${escapeHTML(groupName)}</span>
           <span class="badge badge-default">${members.length} miembros</span>
         </div>
         <div class="intel-item-body">
-          Hub principal: <b>${topMemberName}</b><br>
-          Miembros: <span style="font-size: 11px;">${members.map(m => m.nombre).join(", ")}</span>
+          Hub principal: <b>${escapeHTML(topMemberName)}</b><br>
+          Miembros: <span style="font-size: 11px;">${members.map(m => escapeHTML(m.nombre)).join(", ")}</span>
         </div>
       `;
 
@@ -504,7 +531,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const div = document.createElement("div");
         div.style.marginBottom = "0.4rem";
         div.innerHTML = `
-          • <b>${a.nodeA.nombre}</b> y <b>${a.nodeB.nombre}</b> tienen ${a.count} contactos en común (<i>${a.mutualNames.join(", ")}</i>).
+          • <b>${escapeHTML(a.nodeA.nombre)}</b> y <b>${escapeHTML(a.nodeB.nombre)}</b> tienen ${a.count} contactos en común (<i>${a.mutualNames.map(escapeHTML).join(", ")}</i>).
         `;
         box.appendChild(div);
       });
@@ -530,7 +557,7 @@ document.addEventListener("DOMContentLoaded", () => {
       highRiskNodes.slice(0, 2).forEach(hr => {
         const div = document.createElement("div");
         div.innerHTML = `
-          • <b>${hr.name}</b> posee un índice crítico de centralidad (${hr.score}/1000). Considera expandir enlaces periféricos.
+          • <b>${escapeHTML(hr.name)}</b> posee un índice crítico de centralidad (${hr.score}/1000). Considera expandir enlaces periféricos.
         `;
         box.appendChild(div);
       });
@@ -557,9 +584,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const badgeClass = `badge ${getTypeBadgeClass(n.tipo)}`;
       
       div.innerHTML = `
-        <span class="all-elements-item-name">${n.nombre}</span>
+        <span class="all-elements-item-name">${escapeHTML(n.nombre)}</span>
         <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span class="${badgeClass}">${n.tipo}</span>
+          <span class="${badgeClass}">${escapeHTML(n.tipo)}</span>
           <button class="overlay-btn" style="padding:0.2rem 0.4rem; font-size:0.7rem; color:var(--accent-red);" title="Eliminar" data-id="${n.id}">🗑️</button>
         </div>
       `;
@@ -637,8 +664,8 @@ document.addEventListener("DOMContentLoaded", () => {
           <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.3rem 0.5rem; border-radius:3px; font-size:11px;">
             <span>
               ${isOrig ? "➡️ Conecta a" : "⬅️ Conectado por"} 
-              <a href="#" class="node-link" data-id="${targetId}" style="color:var(--accent-primary); text-decoration:none; font-weight:600;">${targetNode.nombre}</a> 
-              (${r.tipo})
+              <a href="#" class="node-link" data-id="${targetId}" style="color:var(--accent-primary); text-decoration:none; font-weight:600;">${escapeHTML(targetNode.nombre)}</a> 
+              (${escapeHTML(r.tipo)})
             </span>
             <div style="display:flex; gap:0.25rem; align-items:center;">
               <span class="badge badge-default" title="Peso Activo / Inicial" style="font-size:9px;">W: ${currentWeight}/${r.pesoInicial}</span>
@@ -656,8 +683,8 @@ document.addEventListener("DOMContentLoaded", () => {
       for (const [k, v] of Object.entries(n.atributos)) {
         attribsHtml += `
           <div class="attrib-row">
-            <span class="attrib-key">${k}:</span>
-            <span class="attrib-val">${v}</span>
+            <span class="attrib-key">${escapeHTML(k)}:</span>
+            <span class="attrib-val">${escapeHTML(v)}</span>
           </div>
         `;
       }
@@ -672,16 +699,16 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="detail-card">
         <div class="detail-header">
           <div>
-            <h3 class="detail-title">${n.nombre}</h3>
-            <span class="${badgeClass}">${n.tipo}</span>
+            <h3 class="detail-title">${escapeHTML(n.nombre)}</h3>
+            <span class="${badgeClass}">${escapeHTML(n.tipo)}</span>
             <span class="badge level-pill ${stats.levelInfo.class}" style="border:1px solid ${stats.levelInfo.color}44;">Nivel ${stats.levelInfo.level}</span>
           </div>
           <div style="text-align: right;">
-            <span class="badge badge-default" style="display:block; margin-bottom:4px;">${n.estado}</span>
+            <span class="badge badge-default" style="display:block; margin-bottom:4px;">${escapeHTML(n.estado)}</span>
           </div>
         </div>
 
-        <p class="detail-desc">${n.descripcion || "<i>Sin descripción.</i>"}</p>
+        <p class="detail-desc">${n.descripcion ? escapeHTML(n.descripcion) : "<i>Sin descripción.</i>"}</p>
 
         <!-- Influence Index Meter -->
         <div class="influence-meter-container">
@@ -897,8 +924,17 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Check if relation already exists
-    const duplicate = relations.find(r => r.estado === "Activo" && r.origen === origId && r.destino === destId && r.tipo === type);
+    const destNode = nodes.find(n => n.id === destId);
+    if (destNode && destNode.estado !== "Activo") {
+      showToast("La entidad destino está inactiva y no puede usarse para crear relaciones", true);
+      return;
+    }
+
+    // Check if relation already exists in any direction
+    const duplicate = relations.find(r => {
+      if (r.estado !== "Activo" || r.tipo !== type) return false;
+      return (r.origen === origId && r.destino === destId) || (r.origen === destId && r.destino === origId);
+    });
     if (duplicate) {
       showToast("Ya existe esta relación idéntica activa", true);
       return;
@@ -1029,7 +1065,7 @@ document.addEventListener("DOMContentLoaded", () => {
         nodeTypeSelect.value = n.tipo;
         nodeStatusSelect.value = n.estado;
         nodeDescInput.value = n.descripcion || "";
-        nodeCreationDateInput.value = new Date(n.fechaCreacion).toISOString().split('T')[0];
+        nodeCreationDateInput.value = toDateInputValue(n.fechaCreacion);
         nodeAttributesInput.value = n.atributos ? JSON.stringify(n.atributos, null, 2) : "";
         document.getElementById("node-modal-title").textContent = "Editar Entidad";
       }
