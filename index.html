@@ -24,6 +24,8 @@
       </div>
     </div>
 
+    <button class="overlay-btn sidebar-toggle" id="btn-toggle-sidebar" type="button" aria-controls="sidebar-panel" aria-expanded="true" aria-label="Abrir o cerrar panel lateral">☰</button>
+
     <!-- Global Counters -->
     <div class="global-stats">
       <div class="stat-card">
@@ -55,6 +57,8 @@
         <input type="text" id="search-input" placeholder="Buscar entidad por nombre...">
         <button class="btn" id="search-btn">🔍 Buscar</button>
       </div>
+
+      <div class="search-suggestions" id="search-suggestions" role="listbox" aria-label="Resultados de búsqueda"></div>
 
       <!-- Canvas Controls Overlay -->
       <div class="canvas-overlay-controls">
@@ -98,7 +102,7 @@
     </div>
 
     <!-- Sidebar Panel (Right Side) -->
-    <div class="sidebar-panel">
+    <div class="sidebar-panel" id="sidebar-panel">
       <!-- Tabs Headers -->
       <div class="tabs-header">
         <button class="tab-btn active" data-tab="tab-details">Detalles</button>
@@ -268,8 +272,8 @@
   </div>
 
   <!-- Dialog: Add / Edit Node -->
-  <div class="modal-overlay" id="node-modal">
-    <div class="modal-card">
+  <div class="modal-overlay" id="node-modal" role="dialog" aria-modal="true" aria-labelledby="node-modal-title" aria-hidden="true">
+    <div class="modal-card" tabindex="-1">
       <div class="modal-header">
         <h3 id="node-modal-title">Agregar Nuevo Nodo</h3>
         <button class="close-btn" id="btn-close-node-modal">&times;</button>
@@ -307,8 +311,12 @@
             <textarea class="form-control" id="node-desc" placeholder="Breve biografía o detalles de la entidad..."></textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">Atributos Adicionales (JSON Opcional)</label>
-            <textarea class="form-control" id="node-attributes" placeholder='{ "cargo": "CEO", "oficina": "Piso 5" }'></textarea>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.35rem;">
+              <label class="form-label" style="margin-bottom:0;">Atributos adicionales</label>
+              <button class="btn btn-secondary" type="button" id="btn-add-attribute" style="padding:0.25rem 0.5rem; font-size:0.72rem;">+ Agregar atributo</button>
+            </div>
+            <div class="attribute-editor" id="node-attributes-editor" aria-label="Editor de atributos de la entidad"></div>
+            <p class="form-hint">Usa pares clave-valor. No necesitas escribir JSON manual.</p>
           </div>
           <div class="form-group">
             <label class="form-label">Fecha de Creación</label>
@@ -327,6 +335,38 @@
   <div class="notification-banner" id="toast-banner">
     <span id="toast-text">Acción completada con éxito</span>
   </div>
+
+  <!-- Dialog: Confirm Action -->
+  <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-hidden="true">
+    <div class="modal-card confirm-modal" tabindex="-1">
+      <div class="modal-header">
+        <h3 id="confirm-modal-title">Confirmar acción</h3>
+        <button class="close-btn" id="btn-close-confirm-modal" type="button" aria-label="Cerrar confirmación">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-modal-message" class="confirm-message"></p>
+        <div class="form-group" id="confirm-modal-input-group" style="display:none;">
+          <label class="form-label" for="confirm-modal-input">Escribe la frase exacta para continuar</label>
+          <input type="text" class="form-control" id="confirm-modal-input" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cancel-confirm-modal" type="button">Cancelar</button>
+        <button class="btn btn-danger" id="btn-accept-confirm-modal" type="button">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading / Progress Overlay -->
+  <div class="busy-overlay" id="busy-overlay" aria-live="polite" aria-busy="true" aria-hidden="true">
+    <div class="busy-card">
+      <div class="busy-spinner" aria-hidden="true"></div>
+      <div class="busy-title" id="busy-title">Procesando...</div>
+      <div class="busy-subtitle">Espera un momento mientras se actualiza la red.</div>
+    </div>
+  </div>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
 
   <!-- Code files load -->
   <script src="database.js"></script>

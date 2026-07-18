@@ -30,6 +30,261 @@ document.addEventListener("DOMContentLoaded", () => {
     return new Date(date.getTime() - offsetMs).toISOString().split("T")[0];
   };
 
+  const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => resolve()));
+
+  const sidebarPanel = document.getElementById("sidebar-panel");
+  const sidebarToggleBtn = document.getElementById("btn-toggle-sidebar");
+  const sidebarBackdrop = document.getElementById("sidebar-backdrop");
+  const searchSuggestionsEl = document.getElementById("search-suggestions");
+
+  const busyOverlay = document.getElementById("busy-overlay");
+  const busyTitleEl = document.getElementById("busy-title");
+
+  const confirmModal = document.getElementById("confirm-modal");
+  const confirmModalTitleEl = document.getElementById("confirm-modal-title");
+  const confirmModalMessageEl = document.getElementById("confirm-modal-message");
+  const confirmModalInputGroup = document.getElementById("confirm-modal-input-group");
+  const confirmModalInput = document.getElementById("confirm-modal-input");
+  const btnCloseConfirmModal = document.getElementById("btn-close-confirm-modal");
+  const btnCancelConfirmModal = document.getElementById("btn-cancel-confirm-modal");
+  const btnAcceptConfirmModal = document.getElementById("btn-accept-confirm-modal");
+
+  const btnAddAttribute = document.getElementById("btn-add-attribute");
+  const nodeAttributesEditor = document.getElementById("node-attributes-editor");
+
+  const mobileSidebarQuery = window.matchMedia("(max-width: 960px)");
+  let activeModalEl = null;
+  let modalRestoreFocus = null;
+  let confirmState = null;
+
+  const setBusyState = (isBusy, label = "Procesando...") => {
+    if (!busyOverlay || !busyTitleEl) return;
+    busyTitleEl.textContent = label;
+    busyOverlay.style.display = isBusy ? "flex" : "none";
+    busyOverlay.setAttribute("aria-hidden", isBusy ? "false" : "true");
+  };
+
+  const openSidebar = (animate = true) => {
+    if (!sidebarPanel || !sidebarBackdrop) return;
+    sidebarPanel.classList.add("open");
+    sidebarBackdrop.classList.add("show");
+    sidebarToggleBtn?.setAttribute("aria-expanded", "true");
+    if (!animate) {
+      sidebarPanel.style.transition = "none";
+      sidebarBackdrop.style.transition = "none";
+      requestAnimationFrame(() => {
+        sidebarPanel.style.transition = "";
+        sidebarBackdrop.style.transition = "";
+      });
+    }
+  };
+
+  const closeSidebar = (animate = true) => {
+    if (!sidebarPanel || !sidebarBackdrop) return;
+    sidebarPanel.classList.remove("open");
+    sidebarBackdrop.classList.remove("show");
+    sidebarToggleBtn?.setAttribute("aria-expanded", "false");
+    if (!animate) {
+      sidebarPanel.style.transition = "none";
+      sidebarBackdrop.style.transition = "none";
+      requestAnimationFrame(() => {
+        sidebarPanel.style.transition = "";
+        sidebarBackdrop.style.transition = "";
+      });
+    }
+  };
+
+  const syncResponsiveLayout = () => {
+    if (mobileSidebarQuery.matches) {
+      closeSidebar(false);
+    } else {
+      openSidebar(false);
+    }
+  };
+
+  const getFocusableElements = (root) => {
+    if (!root) return [];
+    return [...root.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true");
+  };
+
+  const openDialog = (modalEl, initialFocusEl = null) => {
+    if (!modalEl) return;
+    activeModalEl = modalEl;
+    modalRestoreFocus = document.activeElement;
+    modalEl.style.display = "flex";
+    modalEl.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    const focusTarget = initialFocusEl || getFocusableElements(modalEl)[0] || modalEl.querySelector(".modal-card");
+    requestAnimationFrame(() => {
+      focusTarget?.focus?.();
+    });
+  };
+
+  const closeDialog = (modalEl) => {
+    if (!modalEl) return;
+    modalEl.style.display = "none";
+    modalEl.setAttribute("aria-hidden", "true");
+    if (activeModalEl === modalEl) {
+      activeModalEl = null;
+      document.body.classList.remove("modal-open");
+      const restore = modalRestoreFocus;
+      modalRestoreFocus = null;
+      restore?.focus?.();
+    }
+  };
+
+  const handleModalKeydown = (event) => {
+    if (!activeModalEl) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (activeModalEl === confirmModal) {
+        resolveConfirm(false);
+      } else {
+        closeDialog(activeModalEl);
+      }
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusables = getFocusableElements(activeModalEl);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const createAttributeRow = (key = "", value = "") => {
+    const row = document.createElement("div");
+    row.className = "attribute-row";
+    row.innerHTML = `
+      <input type="text" class="form-control attribute-key" placeholder="Clave" value="${escapeHTML(key)}" aria-label="Clave del atributo">
+      <input type="text" class="form-control attribute-value" placeholder="Valor" value="${escapeHTML(value)}" aria-label="Valor del atributo">
+      <button type="button" class="btn btn-secondary attribute-remove-btn" aria-label="Eliminar atributo">✕</button>
+    `;
+    row.querySelector(".attribute-remove-btn").onclick = () => {
+      row.remove();
+      ensureAttributeEditorHasRow();
+    };
+    return row;
+  };
+
+  const ensureAttributeEditorHasRow = () => {
+    if (!nodeAttributesEditor) return;
+    if (nodeAttributesEditor.children.length === 0) {
+      nodeAttributesEditor.appendChild(createAttributeRow());
+    }
+  };
+
+  const setAttributeEditor = (attributes = {}) => {
+    if (!nodeAttributesEditor) return;
+    nodeAttributesEditor.innerHTML = "";
+    const entries = Object.entries(attributes || {});
+    if (entries.length === 0) {
+      nodeAttributesEditor.appendChild(createAttributeRow());
+      return;
+    }
+    entries.forEach(([key, value]) => nodeAttributesEditor.appendChild(createAttributeRow(key, value)));
+  };
+
+  const readAttributesFromEditor = () => {
+    const attrs = {};
+    if (!nodeAttributesEditor) return attrs;
+    nodeAttributesEditor.querySelectorAll(".attribute-row").forEach(row => {
+      const key = row.querySelector(".attribute-key")?.value.trim();
+      const value = row.querySelector(".attribute-value")?.value.trim();
+      if (!key) return;
+      attrs[key] = value;
+    });
+    return attrs;
+  };
+
+  let searchSuggestionState = [];
+  const renderSearchSuggestions = (query) => {
+    if (!searchSuggestionsEl) return;
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      searchSuggestionsEl.style.display = "none";
+      searchSuggestionsEl.innerHTML = "";
+      searchSuggestionState = [];
+      return;
+    }
+
+    const matches = nodes
+      .filter(n => n.nombre.toLowerCase().includes(trimmed))
+      .slice(0, 6);
+    searchSuggestionState = matches;
+
+    if (matches.length === 0) {
+      searchSuggestionsEl.innerHTML = `<div class="empty-state" style="padding:0.75rem;">Sin resultados.</div>`;
+      searchSuggestionsEl.style.display = "block";
+      return;
+    }
+
+    searchSuggestionsEl.innerHTML = matches.map((match, index) => {
+      const attrs = [match.tipo, match.estado].filter(Boolean).join(" · ");
+      return `
+        <button type="button" class="search-suggestion-item" data-index="${index}" data-id="${match.id}" role="option">
+          <span class="search-suggestion-name">${escapeHTML(match.nombre)}</span>
+          <span class="search-suggestion-meta">${escapeHTML(attrs)}</span>
+        </button>
+      `;
+    }).join("");
+
+    searchSuggestionsEl.style.display = "block";
+    searchSuggestionsEl.querySelectorAll(".search-suggestion-item").forEach(btn => {
+      btn.onclick = () => {
+        const nodeId = btn.getAttribute("data-id");
+        if (nodeId) {
+          searchInput.value = nodes.find(n => n.id === nodeId)?.nombre || "";
+          searchSuggestionsEl.style.display = "none";
+          performSearch();
+        }
+      };
+    });
+  };
+
+  const showConfirmDialog = ({ title, message, confirmLabel = "Confirmar", requireText = "", danger = true }) => {
+    if (!confirmModal) return Promise.resolve(window.confirm(message));
+    confirmState = { requireText, resolve: null };
+    confirmModalTitleEl.textContent = title;
+    confirmModalMessageEl.innerHTML = message;
+    confirmModalInputGroup.style.display = requireText ? "block" : "none";
+    confirmModalInput.value = "";
+    btnAcceptConfirmModal.textContent = confirmLabel;
+    btnAcceptConfirmModal.classList.toggle("btn-danger", danger);
+    btnAcceptConfirmModal.classList.toggle("btn-secondary", !danger);
+    openDialog(confirmModal, requireText ? confirmModalInput : btnAcceptConfirmModal);
+    if (requireText) confirmModalInput.focus();
+    return new Promise(resolve => {
+      confirmState.resolve = resolve;
+    });
+  };
+
+  const resolveConfirm = (result) => {
+    if (!confirmState?.resolve) return;
+    const required = confirmState.requireText;
+    if (result && required) {
+      const typed = confirmModalInput.value.trim();
+      if (typed !== required) {
+        showToast(`Debes escribir "${required}" para continuar`, true);
+        confirmModalInput.focus();
+        return;
+      }
+    }
+    const resolve = confirmState.resolve;
+    confirmState = null;
+    closeDialog(confirmModal);
+    resolve(result);
+  };
+
   // --- App State ---
   let nodes = [];
   let relations = [];
@@ -101,7 +356,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const nodeTypeSelect = document.getElementById("node-type");
   const nodeStatusSelect = document.getElementById("node-status");
   const nodeDescInput = document.getElementById("node-desc");
-  const nodeAttributesInput = document.getElementById("node-attributes");
   const nodeCreationDateInput = document.getElementById("node-creation-date");
 
   // Toast
@@ -122,6 +376,7 @@ document.addEventListener("DOMContentLoaded", () => {
     computeSystemState();
     setupGraph();
     updateUI();
+    syncResponsiveLayout();
   }
 
   function computeSystemState() {
@@ -614,6 +869,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Search ---
   function performSearch() {
     const query = searchInput.value.trim().toLowerCase();
+    renderSearchSuggestions(query);
     if (!query) {
       showToast("Escribe un nombre para buscar", true);
       return;
@@ -621,6 +877,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const match = nodes.find(n => n.nombre.toLowerCase().includes(query));
     if (match) {
+      if (searchSuggestionsEl) searchSuggestionsEl.style.display = "none";
       selectNode(match.id);
       network.focus(match.id, {
         scale: 1.25,
@@ -721,33 +978,36 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
 
-        <!-- Breakdown Details -->
-        <div class="influence-breakdown-title" style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.35rem; font-weight: 700;">Desglose de Factores</div>
-        <div class="influence-breakdown" style="margin-bottom: 1rem;">
-          <div class="breakdown-item"><span class="breakdown-label">Enlaces (25%):</span> <span class="breakdown-val">${stats.breakdown.degree}</span></div>
-          <div class="breakdown-item"><span class="breakdown-label">Diversidad (20%):</span> <span class="breakdown-val">${stats.breakdown.diversity}</span></div>
-          <div class="breakdown-item"><span class="breakdown-label">Calidad (15%):</span> <span class="breakdown-val">${stats.breakdown.quality}</span></div>
-          <div class="breakdown-item"><span class="breakdown-label">Vecindario (15%):</span> <span class="breakdown-val">${stats.breakdown.neighbors}</span></div>
-          <div class="breakdown-item"><span class="breakdown-label">Antigüedad (10%):</span> <span class="breakdown-val">${stats.breakdown.age}</span></div>
-          <div class="breakdown-item"><span class="breakdown-label">Actividad (10%):</span> <span class="breakdown-val">${stats.breakdown.activity}</span></div>
-          <div class="breakdown-item" style="grid-column: span 2;"><span class="breakdown-label">Centralidad (5%):</span> <span class="breakdown-val">${stats.breakdown.centrality}</span></div>
-        </div>
-
-        <!-- Extra attributes -->
-        <div class="influence-breakdown-title" style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.25rem; font-weight: 700;">Atributos de Entidad</div>
-        <div class="attribs-list" style="margin-bottom: 1rem;">
-          ${attribsHtml}
-          <div class="attrib-row" style="margin-top: 0.4rem; border-top:1px dashed rgba(255,255,255,0.05); padding-top:0.3rem;">
-            <span class="attrib-key">Creado:</span>
-            <span class="attrib-val" style="font-size:0.75rem;">${cDate}</span>
+        <details class="detail-accordion" open>
+          <summary class="influence-breakdown-title">Desglose de factores</summary>
+          <div class="influence-breakdown detail-block">
+            <div class="breakdown-item"><span class="breakdown-label">Enlaces (25%):</span> <span class="breakdown-val">${stats.breakdown.degree}</span></div>
+            <div class="breakdown-item"><span class="breakdown-label">Diversidad (20%):</span> <span class="breakdown-val">${stats.breakdown.diversity}</span></div>
+            <div class="breakdown-item"><span class="breakdown-label">Calidad (15%):</span> <span class="breakdown-val">${stats.breakdown.quality}</span></div>
+            <div class="breakdown-item"><span class="breakdown-label">Vecindario (15%):</span> <span class="breakdown-val">${stats.breakdown.neighbors}</span></div>
+            <div class="breakdown-item"><span class="breakdown-label">Antigüedad (10%):</span> <span class="breakdown-val">${stats.breakdown.age}</span></div>
+            <div class="breakdown-item"><span class="breakdown-label">Actividad (10%):</span> <span class="breakdown-val">${stats.breakdown.activity}</span></div>
+            <div class="breakdown-item" style="grid-column: span 2;"><span class="breakdown-label">Centralidad (5%):</span> <span class="breakdown-val">${stats.breakdown.centrality}</span></div>
           </div>
-        </div>
+        </details>
 
-        <!-- Active relationships -->
-        <div class="influence-breakdown-title" style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.35rem; font-weight: 700;">Conexiones en Red</div>
-        <div style="margin-bottom:1rem;">
-          ${relationsHtml}
-        </div>
+        <details class="detail-accordion">
+          <summary class="influence-breakdown-title">Atributos de entidad</summary>
+          <div class="attribs-list detail-block" style="margin-bottom: 1rem;">
+            ${attribsHtml}
+            <div class="attrib-row" style="margin-top: 0.4rem; border-top:1px dashed rgba(255,255,255,0.05); padding-top:0.3rem;">
+              <span class="attrib-key">Creado:</span>
+              <span class="attrib-val" style="font-size:0.75rem;">${cDate}</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="detail-accordion">
+          <summary class="influence-breakdown-title">Conexiones en red</summary>
+          <div class="detail-block" style="margin-bottom:1rem;">
+            ${relationsHtml}
+          </div>
+        </details>
 
         <!-- Node Actions -->
         <div style="display:flex; gap:0.5rem; border-top: 1px solid var(--border-color); padding-top:0.75rem;">
@@ -830,68 +1090,65 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
   };
 
-  btnSaveNode.onclick = () => {
+  btnSaveNode.onclick = async () => {
     const id = editNodeId.value;
     const nombre = nodeNameInput.value.trim();
     const tipo = nodeTypeSelect.value;
     const estado = nodeStatusSelect.value;
     const descripcion = nodeDescInput.value.trim();
     const creationDate = nodeCreationDateInput.value;
-    const rawAttrs = nodeAttributesInput.value.trim();
+    const atributos = readAttributesFromEditor();
 
     if (!nombre) {
       showToast("Ingresa un nombre para la entidad", true);
       return;
     }
 
-    let atributos = {};
-    if (rawAttrs) {
-      try {
-        atributos = JSON.parse(rawAttrs);
-      } catch (err) {
-        showToast("Error de formato JSON en atributos", true);
-        return;
-      }
-    }
+    setBusyState(true, id ? "Actualizando nodo..." : "Guardando nodo...");
+    await nextFrame();
 
-    if (id) {
-      // Update
-      const nIdx = nodes.findIndex(x => x.id === id);
-      if (nIdx !== -1) {
-        nodes[nIdx] = {
-          ...nodes[nIdx],
+    try {
+      if (id) {
+        // Update
+        const nIdx = nodes.findIndex(x => x.id === id);
+        if (nIdx !== -1) {
+          nodes[nIdx] = {
+            ...nodes[nIdx],
+            nombre,
+            tipo,
+            estado,
+            descripcion,
+            atributos,
+            fechaCreacion: new Date(creationDate).toISOString()
+          };
+          showToast(`Nodo '${nombre}' actualizado`);
+        }
+      } else {
+        // Insert
+        const newId = `node-${Date.now()}`;
+        nodes.push({
+          id: newId,
           nombre,
           tipo,
           estado,
           descripcion,
           atributos,
           fechaCreacion: new Date(creationDate).toISOString()
-        };
-        showToast(`Nodo '${nombre}' actualizado`);
+        });
+        showToast(`Nodo '${nombre}' creado`);
       }
-    } else {
-      // Insert
-      const newId = `node-${Date.now()}`;
-      nodes.push({
-        id: newId,
-        nombre,
-        tipo,
-        estado,
-        descripcion,
-        atributos,
-        fechaCreacion: new Date(creationDate).toISOString()
-      });
-      showToast(`Nodo '${nombre}' creado`);
-    }
 
-    window.SIRDatabase.save(nodes, relations);
-    computeSystemState();
-    updateVisDatasets();
-    updateUI();
-    closeNodeModal();
+      window.SIRDatabase.save(nodes, relations);
+      computeSystemState();
+      updateVisDatasets();
+      updateUI();
+      closeNodeModal();
 
-    if (id && selectedNodeId === id) {
-      selectNode(id);
+      if (id && selectedNodeId === id) {
+        selectNode(id);
+      }
+    } finally {
+      setBusyState(false);
     }
   };
 
@@ -909,7 +1166,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Quick Relationship Submit Form
-  quickRelationForm.onsubmit = (e) => {
+  quickRelationForm.onsubmit = async (e) => {
     e.preventDefault();
     const origId = relOrigId.value;
     const destId = relDestSelect.value;
@@ -952,17 +1209,24 @@ document.addEventListener("DOMContentLoaded", () => {
       ultimaInteraccion: new Date(date).toISOString()
     };
 
-    relations.push(newRel);
-    window.SIRDatabase.save(nodes, relations);
-    computeSystemState();
-    updateVisDatasets();
-    updateUI();
-    selectNode(origId); // Refresh selected node details
-    showToast("Relación creada con éxito");
+    setBusyState(true, "Creando relación...");
+    await nextFrame();
 
-    // Reset form fields except notes/types
-    relDestSelect.selectedIndex = 0;
-    document.getElementById("rel-notes").value = "";
+    try {
+      relations.push(newRel);
+      window.SIRDatabase.save(nodes, relations);
+      computeSystemState();
+      updateVisDatasets();
+      updateUI();
+      selectNode(origId); // Refresh selected node details
+      showToast("Relación creada con éxito");
+
+      // Reset form fields except notes/types
+      relDestSelect.selectedIndex = 0;
+      document.getElementById("rel-notes").value = "";
+    } finally {
+      setBusyState(false);
+    }
   };
 
   function deleteRelation(relId) {
@@ -1052,7 +1316,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Modals controls ---
   function openNodeModal(nodeIdToEdit = null) {
     nodeForm.reset();
-    nodeAttributesInput.value = "";
+    setAttributeEditor();
     
     const today = getTodayDateValue();
     nodeCreationDateInput.value = today;
@@ -1066,7 +1330,7 @@ document.addEventListener("DOMContentLoaded", () => {
         nodeStatusSelect.value = n.estado;
         nodeDescInput.value = n.descripcion || "";
         nodeCreationDateInput.value = toDateInputValue(n.fechaCreacion);
-        nodeAttributesInput.value = n.atributos ? JSON.stringify(n.atributos, null, 2) : "";
+        setAttributeEditor(n.atributos || {});
         document.getElementById("node-modal-title").textContent = "Editar Entidad";
       }
     } else {
@@ -1074,11 +1338,11 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("node-modal-title").textContent = "Crear Nuevo Nodo";
     }
     
-    nodeModal.style.display = "flex";
+    openDialog(nodeModal, nodeNameInput);
   }
 
   function closeNodeModal() {
-    nodeModal.style.display = "none";
+    closeDialog(nodeModal);
   }
 
   // --- Data Controls (Import/Export/Reset) ---
@@ -1229,6 +1493,272 @@ document.addEventListener("DOMContentLoaded", () => {
       toastBanner.classList.remove("show");
     }, 3000);
   }
+
+  // --- Accessibility, responsiveness and richer interactions ---
+  mobileSidebarQuery.addEventListener("change", syncResponsiveLayout);
+  sidebarToggleBtn?.addEventListener("click", () => {
+    if (sidebarPanel.classList.contains("open")) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
+  });
+  sidebarBackdrop?.addEventListener("click", () => closeSidebar());
+
+  btnAddAttribute?.addEventListener("click", () => {
+    nodeAttributesEditor.appendChild(createAttributeRow());
+  });
+
+  searchInput?.addEventListener("input", (e) => renderSearchSuggestions(e.target.value));
+  searchInput?.addEventListener("focus", () => renderSearchSuggestions(searchInput.value));
+  searchInput?.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (!searchSuggestionsEl) return;
+      if (searchSuggestionsEl.contains(document.activeElement)) return;
+      searchSuggestionsEl.style.display = "none";
+    }, 150);
+  });
+  searchInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") performSearch();
+    if (e.key === "Escape" && searchSuggestionsEl) {
+      searchSuggestionsEl.style.display = "none";
+    }
+  });
+  searchBtn.onclick = performSearch;
+
+  window.addEventListener("keydown", handleModalKeydown);
+  nodeModal?.addEventListener("click", (e) => {
+    if (e.target === nodeModal) closeNodeModal();
+  });
+  confirmModal?.addEventListener("click", (e) => {
+    if (e.target === confirmModal) resolveConfirm(false);
+  });
+
+  btnCloseConfirmModal?.addEventListener("click", () => resolveConfirm(false));
+  btnCancelConfirmModal?.addEventListener("click", () => resolveConfirm(false));
+  btnAcceptConfirmModal?.addEventListener("click", () => resolveConfirm(true));
+
+  btnFindPath.onclick = async () => {
+    const startId = pathStartSelect.value;
+    const endId = pathEndSelect.value;
+
+    if (!startId || !endId) {
+      showToast("Selecciona dos nodos para trazar la ruta", true);
+      return;
+    }
+
+    if (startId === endId) {
+      showToast("El origen y destino deben ser diferentes", true);
+      return;
+    }
+
+    setBusyState(true, "Calculando camino óptimo...");
+    await nextFrame();
+
+    try {
+      const path = window.SIRAlgorithms.findShortestRoute(nodes, relations, startId, endId);
+      if (!path) {
+        pathfinderResultsBox.style.display = "block";
+        pathStepsEl.innerHTML = '<div style="font-size:0.75rem; color:var(--accent-red); font-style:italic;">No existe ninguna trayectoria de conexión directa o indirecta entre estos nodos.</div>';
+        activeHighlightNodes = null;
+        activeHighlightEdges = null;
+        updateVisDatasets();
+        return;
+      }
+
+      pathfinderResultsBox.style.display = "block";
+      pathStepsEl.innerHTML = "";
+
+      const pathNodeIds = new Set(path);
+      const pathEdgeIds = new Set();
+
+      for (let i = 0; i < path.length; i++) {
+        const nodeId = path[i];
+        const node = nodes.find(n => n.id === nodeId);
+
+        const stepDiv = document.createElement("div");
+        stepDiv.className = "path-node";
+        stepDiv.textContent = node.nombre;
+        stepDiv.onclick = () => {
+          selectNode(nodeId);
+          network.focus(nodeId, { scale: 1.2, animation: { duration: 400 } });
+        };
+
+        pathStepsEl.appendChild(stepDiv);
+
+        if (i < path.length - 1) {
+          const nextId = path[i + 1];
+          const rel = relations.find(r =>
+            r.estado === "Activo" &&
+            ((r.origen === nodeId && r.destino === nextId) || (r.origen === nextId && r.destino === nodeId))
+          );
+
+          if (rel) {
+            pathEdgeIds.add(rel.id);
+            const connDiv = document.createElement("div");
+            connDiv.className = "path-connector";
+            connDiv.textContent = rel.tipo;
+            pathStepsEl.appendChild(connDiv);
+          }
+        }
+      }
+
+      activeHighlightNodes = pathNodeIds;
+      activeHighlightEdges = pathEdgeIds;
+      updateVisDatasets(pathNodeIds, pathEdgeIds);
+      showToast("Camino óptimo calculado y resaltado");
+    } finally {
+      setBusyState(false);
+    }
+  };
+
+  btnImportTrigger.onclick = () => btnImport.click();
+  btnImport.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target.result);
+        if (!parsed.nodes || !parsed.relations) {
+          throw new Error("Formato inválido: debe contener arreglos de 'nodes' y 'relations'.");
+        }
+
+        setBusyState(true, "Importando grafo...");
+        await nextFrame();
+
+        nodes = parsed.nodes;
+        relations = parsed.relations;
+        window.SIRDatabase.save(nodes, relations);
+        computeSystemState();
+        setupGraph();
+        updateUI();
+        clearNodeSelection();
+        showToast("Grafo importado exitosamente");
+      } catch (err) {
+        showToast(`Error al importar: ${err.message}`, true);
+      } finally {
+        setBusyState(false);
+      }
+    };
+    reader.readAsText(file);
+    btnImport.value = "";
+  };
+
+  btnReset.onclick = async () => {
+    const confirmed = await showConfirmDialog({
+      title: "Cargar demo",
+      message: "Esto reemplazará la red actual por el ecosistema demo predeterminado. Esta acción no se puede deshacer.",
+      confirmLabel: "Cargar demo",
+      danger: true
+    });
+    if (!confirmed) return;
+
+    setBusyState(true, "Cargando demo...");
+    await nextFrame();
+    try {
+      const data = window.SIRDatabase.reset();
+      nodes = data.nodes;
+      relations = data.relations;
+      computeSystemState();
+      setupGraph();
+      updateUI();
+      clearNodeSelection();
+      showToast("Ecosistema demo restaurado");
+    } finally {
+      setBusyState(false);
+    }
+  };
+
+  btnClearAll.onclick = async () => {
+    const confirmed = await showConfirmDialog({
+      title: "Borrar grafo completo",
+      message: "Vas a eliminar por completo todos los nodos y relaciones. Para continuar escribe <strong>BORRAR GRAFO</strong>.",
+      confirmLabel: "Borrar todo",
+      requireText: "BORRAR GRAFO",
+      danger: true
+    });
+    if (!confirmed) return;
+
+    setBusyState(true, "Vaciando red...");
+    await nextFrame();
+    try {
+      nodes = [];
+      relations = [];
+      window.SIRDatabase.save(nodes, relations);
+      computeSystemState();
+      setupGraph();
+      updateUI();
+      clearNodeSelection();
+      showToast("Grafo completamente vaciado", true);
+    } finally {
+      setBusyState(false);
+    }
+  };
+
+  selectedNodeContainer?.addEventListener("click", async (e) => {
+    const deleteSelectedBtn = e.target.closest("#btn-delete-selected");
+    if (deleteSelectedBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const node = nodes.find(n => n.id === selectedNodeId);
+      if (!node) return;
+      const confirmed = await showConfirmDialog({
+        title: "Eliminar entidad",
+        message: `¿Estás seguro de eliminar a <strong>${escapeHTML(node.nombre)}</strong>? Se borrarán también todas sus relaciones.`,
+        confirmLabel: "Eliminar",
+        danger: true
+      });
+      if (confirmed) {
+        deleteNode(node.id);
+        clearNodeSelection();
+      }
+      return;
+    }
+
+    const relBtn = e.target.closest(".btn-delete-rel");
+    if (relBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const relId = relBtn.getAttribute("data-id");
+      const confirmed = await showConfirmDialog({
+        title: "Eliminar relación",
+        message: "¿Seguro de eliminar esta relación?",
+        confirmLabel: "Eliminar",
+        danger: true
+      });
+      if (confirmed) {
+        deleteRelation(relId);
+        selectNode(selectedNodeId);
+      }
+    }
+  }, true);
+
+  allEntitiesListEl?.addEventListener("click", async (e) => {
+    const deleteBtn = e.target.closest("button[data-id]");
+    if (!deleteBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const nodeId = deleteBtn.getAttribute("data-id");
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const confirmed = await showConfirmDialog({
+      title: "Eliminar entidad",
+      message: `¿Estás seguro de eliminar a <strong>${escapeHTML(node.nombre)}</strong>? Se borrarán también todas sus relaciones.`,
+      confirmLabel: "Eliminar",
+      danger: true
+    });
+    if (confirmed) {
+      deleteNode(nodeId);
+    }
+  }, true);
+
+  // Keep the search suggestions useful when the user clicks the button.
+  searchBtn.onclick = () => {
+    renderSearchSuggestions(searchInput.value);
+    performSearch();
+  };
 
   // Run initial loading
   init();
