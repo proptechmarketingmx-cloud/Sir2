@@ -1582,14 +1582,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btnReset.onclick = async () => {
     const confirmed = await showConfirmDialog({
-      title: "Cargar demo",
-      message: "Esto reemplazarÃ¡ la red actual por el ecosistema demo predeterminado. Esta acciÃ³n no se puede deshacer.",
-      confirmLabel: "Cargar demo",
+      title: "Reiniciar red",
+      message: "Esto vaciará la red actual y la dejará sin datos iniciales. Esta acción no se puede deshacer.",
+      confirmLabel: "Reiniciar",
       danger: true
     });
     if (!confirmed) return;
 
-    setBusyState(true, "Cargando demo...");
+    setBusyState(true, "Reiniciando red...");
     await nextFrame();
     try {
       const data = window.SIRDatabase.reset();
@@ -1599,7 +1599,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setupGraph();
       updateUI();
       clearNodeSelection();
-      showToast("Ecosistema demo restaurado");
+      showToast("Red reiniciada sin datos iniciales");
     } finally {
       setBusyState(false);
     }
@@ -1697,5 +1697,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Run initial loading
   init();
 });
+
+
 
 

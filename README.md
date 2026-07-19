@@ -28,7 +28,7 @@ A diferencia de un CRM tradicional que registra historiales de ventas, el SIR ca
    - Panel de edición para crear, actualizar y eliminar nodos y relaciones en vivo.
    - Persistencia local automática en el navegador (**LocalStorage**).
    - Utilidades de **Importación / Exportación** en formato JSON para transferir redes de grafos de manera consistente.
-   - Carga instantánea de un ecosistema demo inmobiliario (Notarios, Desarrolladores, Bancos, Eventos) para demostración inmediata.
+   - La red arranca vac�a para que puedas cargar o crear tus propios datos desde cero.
 
 ---
 
@@ -37,7 +37,7 @@ A diferencia de un CRM tradicional que registra historiales de ventas, el SIR ca
 El proyecto es una aplicación web SPA estática organizada de la siguiente manera:
 - **`index.html`**: Diseño estructural de la interfaz de usuario, paneles laterales divididos por pestañas, y controles del lienzo.
 - **`style.css`**: Estilo estético premium con soporte de modo oscuro, glassmorphism, badges personalizados, formularios reactivos y banners informativos.
-- **`database.js`**: Definición de los esquemas de datos del ecosistema predeterminado (AMPI, Tec de Monterrey, Banco Capital, Inmobiliaria Lux, etc.) y administración del almacenamiento local.
+- **`database.js`**: Gesti�n del almacenamiento local y del estado vac�o inicial del grafo.
 - **`algorithms.js`**: Motor matemático y algorítmico (cálculo de influencia multifactorial, Brandes para centralidades, LPA para comunidades y Dijkstra para pathfinding).
 - **`app.js`**: Controlador de eventos de interfaz, inicializador de Vis.js, sincronización de formularios, búsquedas y animaciones en el grafo.
 
@@ -64,3 +64,6 @@ Luego navega a [http://localhost:8000](http://localhost:8000).
 npx http-server -p 8000
 ```
 Luego navega a [http://localhost:8000](http://localhost:8000).
+
+
+
