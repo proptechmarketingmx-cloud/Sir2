@@ -67,3 +67,9 @@ Luego navega a [http://localhost:8000](http://localhost:8000).
 
 
 
+---
+
+## Demo y Capturas
+
+- Demo en vivo: pendiente de publicación en GitHub Pages u otro host estático.
+- Captura o GIF: pendiente de agregar para mostrar el grafo interactivo desde la portada.
