@@ -213,6 +213,32 @@ document.addEventListener("DOMContentLoaded", () => {
     return attrs;
   };
 
+  const getNodeSearchText = (node) => [
+    node.nombre,
+    node.contacto,
+    node.organizacion,
+    node.perfilUrl,
+    node.descripcion,
+    ...(Object.values(node.atributos || {}))
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const getNodeRelationsById = (nodeId) => relations.filter(r => r.origen === nodeId || r.destino === nodeId);
+
+  const buildDeleteNodeMessage = (node) => {
+    const relationCount = getNodeRelationsById(node.id).length;
+    const relationLabel = relationCount === 1 ? "relación" : "relaciones";
+    return `¿Estás seguro de eliminar a <strong>${escapeHTML(node.nombre)}</strong>? Se moverá a la papelera junto con ${relationCount} ${relationLabel}. Podrás restaurarla durante 7 días.`;
+  };
+
+  const getTrashExpirationText = (purgeAt) => {
+    const date = new Date(purgeAt);
+    if (Number.isNaN(date.getTime())) return "Sin vencimiento";
+    return date.toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "numeric" });
+  };
+
   let searchSuggestionState = [];
   const renderSearchSuggestions = (query) => {
     if (!searchSuggestionsEl) return;
@@ -236,7 +262,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     searchSuggestionsEl.innerHTML = matches.map((match, index) => {
-      const attrs = [match.tipo, match.estado].filter(Boolean).join(" Â· ");
+      const attrs = [match.tipo, match.estado, match.organizacion, match.contacto].filter(Boolean).join(" Â· ");
       return `
         <button type="button" class="search-suggestion-item" data-index="${index}" data-id="${match.id}" role="option">
           <span class="search-suggestion-name">${escapeHTML(match.nombre)}</span>
@@ -295,6 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- App State ---
   let nodes = [];
   let relations = [];
+  let deletedNodes = [];
   let influenceIndexes = {};
   let communityMap = {};
   
@@ -343,6 +370,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const recommendationsEl = document.getElementById("recommendations-container");
   
   const allEntitiesListEl = document.getElementById("all-entities-list");
+  const deletedNodesListEl = document.getElementById("deleted-nodes-list");
+  const trashElementsTitle = document.getElementById("trash-elements-title");
   const dataElementsTitle = document.getElementById("data-elements-title");
 
   const btnExport = document.getElementById("btn-export");
@@ -364,6 +393,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const nodeStatusSelect = document.getElementById("node-status");
   const nodeDescInput = document.getElementById("node-desc");
   const nodeCreationDateInput = document.getElementById("node-creation-date");
+  const nodeContactInput = document.getElementById("node-contact");
+  const nodeOrganizationInput = document.getElementById("node-organization");
+  const nodeProfileUrlInput = document.getElementById("node-profile-url");
 
   // Toast
   const toastBanner = document.getElementById("toast-banner");
@@ -373,6 +405,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function init() {
     const data = window.SIRDatabase.load();
     nodes = data.nodes;
+    deletedNodes = data.deletedNodes || [];
     relations = data.relations;
 
     // Set dates default value to current date
@@ -647,6 +680,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const uniqueCommunities = new Set(Object.values(communityMap));
     statCommunitiesEl.textContent = uniqueCommunities.size;
+    renderDeletedNodes();
 
     // 2. Refresh lists and selects
     populateDropdowns();
@@ -1594,6 +1628,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const data = window.SIRDatabase.reset();
       nodes = data.nodes;
+    deletedNodes = data.deletedNodes || [];
       relations = data.relations;
       computeSystemState();
       setupGraph();
@@ -1697,6 +1732,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Run initial loading
   init();
 });
+
+
 
 
 

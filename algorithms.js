@@ -1,5 +1,7 @@
 // algorithms.js - Intelligence, influence, communities and pathfinding for SIR
 
+const MAX_RELATION_WEIGHT = 20;
+
 /**
  * Calculates the decay factor of a relation based on months since the last interaction.
  * @param {string} lastInteractionIso ISO Date string
@@ -196,7 +198,7 @@ function calculateInfluenceIndexes(nodes, relations) {
 
     // 3. Quality score (15%)
     const avgWeight = raw.degree > 0 ? (raw.sumActiveWeights / raw.degree) : 0;
-    const scoreQuality = Math.min(1000, (avgWeight / 20) * 1000); // 20 is initial max weight
+    const scoreQuality = Math.min(1000, (avgWeight / MAX_RELATION_WEIGHT) * 1000);
 
     // 4. Age score (10%)
     const ageDays = Math.max(0, (now - new Date(n.fechaCreacion)) / (1000 * 60 * 60 * 24));
@@ -426,5 +428,6 @@ window.SIRAlgorithms = {
   getInfluenceLevel,
   calculateInfluenceIndexes,
   detectCommunitiesLPA,
-  findShortestRoute
+  findShortestRoute,
+  MAX_RELATION_WEIGHT
 };
